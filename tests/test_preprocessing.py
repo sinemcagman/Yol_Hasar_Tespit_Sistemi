@@ -50,3 +50,33 @@ def test_boyutlandir_renkli():
 def test_boyutlandir_gecersiz():
     with pytest.raises(ValueError):
         pp.boyutlandir(np.zeros((5, 5), dtype=np.uint8), 0)
+
+
+def test_duz_goruntu_bulaniklastirmayla_degismez():
+    img = np.full((20, 20), 128, dtype=np.uint8)
+    assert np.array_equal(pp.gauss_bulaniklastir(img, 2.0), img)
+
+
+def test_parlak_nokta_yayilir():
+    img = np.zeros((21, 21), dtype=np.uint8)
+    img[10, 10] = 255
+    b = pp.gauss_bulaniklastir(img, 1.0)
+    assert 0 < b[10, 11] < b[10, 10] < 255
+
+
+def test_gauss_gecersiz_sigma():
+    with pytest.raises(ValueError):
+        pp.gauss_bulaniklastir(np.zeros((5, 5), dtype=np.uint8), 0)
+
+
+def test_clahe_dusuk_kontrasti_artirir():
+    # 100-130 aralığına sıkışmış düşük kontrastlı görüntü
+    rng = np.random.default_rng(1)
+    img = rng.integers(100, 131, (64, 64), dtype=np.uint8)
+    cikti = pp.kontrast_dengele(img)
+    assert cikti.std() > img.std()
+
+
+def test_clahe_renkli_reddedilir():
+    with pytest.raises(ValueError):
+        pp.kontrast_dengele(np.zeros((8, 8, 3), dtype=np.uint8))

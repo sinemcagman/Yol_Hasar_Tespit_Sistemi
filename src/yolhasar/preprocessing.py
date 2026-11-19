@@ -63,3 +63,30 @@ def boyutlandir(goruntu: np.ndarray, uzun_kenar: int = 640) -> np.ndarray:
     yeni = (max(1, round(g * olcek)), max(1, round(y * olcek)))
     # INTER_AREA küçültmede örtüşme (aliasing) bozulmasını en aza indirir
     return cv2.resize(goruntu, yeni, interpolation=cv2.INTER_AREA)
+
+
+def gauss_bulaniklastir(goruntu: np.ndarray, sigma: float = 1.5) -> np.ndarray:
+    """Gauss bulanıklaştırma.
+
+    Asfalt dokusundaki ince taneli gürültüyü bastırır; böylece kenar tespitinde
+    çatlak gibi daha büyük yapılar öne çıkar. Çekirdek boyutu ``6σ+1``
+    (dağılımın ~%99.7'si) olarak seçilir.
+    """
+    if not sigma > 0:
+        raise ValueError(f"sigma pozitif olmalı: {sigma}")
+    k = int(np.ceil(3 * sigma)) * 2 + 1
+    return cv2.GaussianBlur(goruntu, (k, k), sigma)
+
+
+def kontrast_dengele(gri: np.ndarray, kirpma_limiti: float = 2.0, karo: int = 8) -> np.ndarray:
+    """CLAHE (Kontrast Sınırlı Uyarlamalı Histogram Eşitleme).
+
+    Yol görüntülerinde gölge, güneş yansıması gibi bölgesel aydınlatma
+    farkları olur. Global histogram eşitleme bu durumda bazı bölgeleri
+    patlatır; CLAHE görüntüyü ``karo×karo`` parçaya bölüp her birinde ayrı
+    eşitleme yapar ve kırpma limitiyle gürültünün aşırı büyümesini önler.
+    """
+    if gri.ndim != 2:
+        raise ValueError("CLAHE tek kanallı (gri) görüntü bekler")
+    clahe = cv2.createCLAHE(clipLimit=kirpma_limiti, tileGridSize=(karo, karo))
+    return clahe.apply(gri)
