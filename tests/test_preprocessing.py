@@ -80,3 +80,19 @@ def test_clahe_dusuk_kontrasti_artirir():
 def test_clahe_renkli_reddedilir():
     with pytest.raises(ValueError):
         pp.kontrast_dengele(np.zeros((8, 8, 3), dtype=np.uint8))
+
+
+def test_on_isleme_hatti():
+    img = np.random.default_rng(2).integers(0, 256, (1500, 2000, 3), dtype=np.uint8)
+    sonuc = pp.on_isle(img)
+    assert sonuc.goruntu.shape == (480, 640)
+    assert sonuc.goruntu.dtype == np.uint8
+    assert sonuc.olcek == pytest.approx(0.32)
+    assert sonuc.orijinale(320) == pytest.approx(1000)
+
+
+def test_on_isleme_clahe_kapali():
+    img = np.full((100, 100, 3), 50, dtype=np.uint8)
+    sonuc = pp.on_isle(img, pp.OnIslemeAyarlari(clahe=False))
+    assert sonuc.olcek == 1.0
+    assert np.all(sonuc.goruntu == 50)

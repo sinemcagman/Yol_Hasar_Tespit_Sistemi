@@ -6,6 +6,7 @@ makul boyut, gri ton, gürültüsü azaltılmış ve kontrastı dengelenmiş gö
 
 from __future__ import annotations
 
+from dataclasses import dataclass
 from pathlib import Path
 
 import cv2
@@ -90,3 +91,42 @@ def kontrast_dengele(gri: np.ndarray, kirpma_limiti: float = 2.0, karo: int = 8)
         raise ValueError("CLAHE tek kanallı (gri) görüntü bekler")
     clahe = cv2.createCLAHE(clipLimit=kirpma_limiti, tileGridSize=(karo, karo))
     return clahe.apply(gri)
+
+
+@dataclass(frozen=True)
+class OnIslemeAyarlari:
+    """Ön işleme hattının parametreleri."""
+
+    uzun_kenar: int = 640
+    sigma: float = 1.5
+    clahe: bool = True
+    kirpma_limiti: float = 2.0
+
+
+@dataclass(frozen=True)
+class OnIslemeSonucu:
+    """Ön işlenmiş görüntü ve orijinal koordinatlara dönüş için ölçek."""
+
+    goruntu: np.ndarray
+    olcek: float  # işlenmiş / orijinal
+
+    def orijinale(self, deger: float) -> float:
+        """İşlenmiş görüntüdeki bir piksel değerini orijinal görüntü ölçeğine çevirir."""
+        return deger / self.olcek
+
+
+def on_isle(goruntu: np.ndarray, ayarlar: OnIslemeAyarlari | None = None) -> OnIslemeSonucu:
+    """Tam ön işleme hattı: boyutlandırma → gri ton → CLAHE → Gauss.
+
+    CLAHE, bulanıklaştırmadan önce uygulanır; aksi halde bulanıklaştırmanın
+    düşürdüğü yerel kontrast tekrar yükseltilip gürültü geri gelir.
+    """
+    ayarlar = ayarlar or OnIslemeAyarlari()
+    orijinal_uzun = max(goruntu.shape[:2])
+    img = boyutlandir(goruntu, ayarlar.uzun_kenar)
+    olcek = max(img.shape[:2]) / orijinal_uzun
+    img = gri_ton(img)
+    if ayarlar.clahe:
+        img = kontrast_dengele(img, ayarlar.kirpma_limiti)
+    img = gauss_bulaniklastir(img, ayarlar.sigma)
+    return OnIslemeSonucu(img, olcek)
