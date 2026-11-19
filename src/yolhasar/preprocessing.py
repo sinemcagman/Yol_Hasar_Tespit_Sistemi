@@ -44,3 +44,22 @@ def gri_ton(goruntu: np.ndarray) -> np.ndarray:
     if goruntu.ndim == 2:
         return goruntu
     return cv2.cvtColor(goruntu, cv2.COLOR_BGR2GRAY)
+
+
+def boyutlandir(goruntu: np.ndarray, uzun_kenar: int = 640) -> np.ndarray:
+    """Uzun kenar ``uzun_kenar`` piksel olacak şekilde en-boy oranını koruyarak küçültür.
+
+    Telefon kameralarından gelen 4000×3000 gibi görüntüleri işlemek hem yavaş
+    hem de gereksizdir; YOLO modeli de 640 piksel girdiyle eğitilecektir.
+    Görüntü zaten küçükse büyütülmez.
+    """
+    if uzun_kenar <= 0:
+        raise ValueError("uzun_kenar pozitif olmalı")
+    y, g = goruntu.shape[:2]
+    mevcut = max(g, y)
+    if mevcut <= uzun_kenar:
+        return goruntu
+    olcek = uzun_kenar / mevcut
+    yeni = (max(1, round(g * olcek)), max(1, round(y * olcek)))
+    # INTER_AREA küçültmede örtüşme (aliasing) bozulmasını en aza indirir
+    return cv2.resize(goruntu, yeni, interpolation=cv2.INTER_AREA)

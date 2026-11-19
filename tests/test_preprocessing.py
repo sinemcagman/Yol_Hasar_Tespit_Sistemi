@@ -31,3 +31,22 @@ def test_bozuk_dosya(tmp_path):
     yol.write_bytes(b"resim degil")
     with pytest.raises(ValueError):
         pp.yukle(yol)
+
+
+@pytest.mark.parametrize(
+    "boyut,uzun,beklenen",
+    [((3000, 4000), 640, (480, 640)), ((1200, 300), 600, (600, 150)), ((50, 100), 640, (50, 100))],
+)
+def test_boyutlandir_oran_korunur(boyut, uzun, beklenen):
+    img = np.zeros(boyut, dtype=np.uint8)
+    assert pp.boyutlandir(img, uzun).shape == beklenen
+
+
+def test_boyutlandir_renkli():
+    img = np.zeros((1000, 2000, 3), dtype=np.uint8)
+    assert pp.boyutlandir(img, 500).shape == (250, 500, 3)
+
+
+def test_boyutlandir_gecersiz():
+    with pytest.raises(ValueError):
+        pp.boyutlandir(np.zeros((5, 5), dtype=np.uint8), 0)
