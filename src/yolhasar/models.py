@@ -2,8 +2,11 @@
 
 from __future__ import annotations
 
+import math
 from dataclasses import dataclass
 from enum import Enum
+
+DUNYA_YARICAPI_M = 6_371_000.0
 
 
 class HasarTuru(str, Enum):
@@ -121,3 +124,27 @@ class Kutu:
         kesisim = self.kesisim(diger)
         birlesim = self.alan + diger.alan - kesisim
         return kesisim / birlesim if birlesim > 0 else 0.0
+
+
+@dataclass(frozen=True)
+class Konum:
+    """WGS84 enlem/boylam çifti."""
+
+    enlem: float
+    boylam: float
+
+    def __post_init__(self) -> None:
+        if not (-90 <= self.enlem <= 90 and -180 <= self.boylam <= 180):
+            raise ValueError(f"geçersiz koordinat: enlem={self.enlem}, boylam={self.boylam}")
+
+    def mesafe_m(self, diger: Konum) -> float:
+        """Haversine formülü ile iki nokta arası büyük daire mesafesi (metre).
+
+        Aynı hasarın farklı görüntülerde tekrar raporlanmasını önlemek için
+        kullanılacaktır (ör. birkaç metre içindeki aynı tür tespitleri birleştirme).
+        """
+        e1, e2 = math.radians(self.enlem), math.radians(diger.enlem)
+        de = e2 - e1
+        db = math.radians(diger.boylam - self.boylam)
+        a = math.sin(de / 2) ** 2 + math.cos(e1) * math.cos(e2) * math.sin(db / 2) ** 2
+        return 2 * DUNYA_YARICAPI_M * math.asin(math.sqrt(a))

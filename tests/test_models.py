@@ -1,6 +1,6 @@
 import pytest
 
-from yolhasar.models import HasarTuru, Kutu
+from yolhasar.models import HasarTuru, Konum, Kutu
 
 
 def test_koddan_donusum():
@@ -48,3 +48,20 @@ def test_yolo_gidis_donus():
 
 def test_koselerden_sira_bagimsiz():
     assert Kutu.koselerden(10, 10, 0, 0) == Kutu(0, 0, 10, 10)
+
+
+@pytest.mark.parametrize("e,b", [(91, 0), (0, -181), (float("nan"), 0)])
+def test_gecersiz_koordinat(e, b):
+    with pytest.raises(ValueError):
+        Konum(e, b)
+
+
+def test_ayni_nokta_mesafe_sifir():
+    k = Konum(41.0082, 28.9784)
+    assert k.mesafe_m(k) == pytest.approx(0.0, abs=1e-6)
+
+
+def test_istanbul_ankara_mesafesi():
+    # Kuş uçuşu yaklaşık 350 km
+    km = Konum(41.0082, 28.9784).mesafe_m(Konum(39.9334, 32.8597)) / 1000
+    assert 340 < km < 360
