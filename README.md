@@ -24,3 +24,14 @@ pip install -r requirements-dev.txt
 pytest            # testler
 ruff check .      # kod stili / statik analiz
 ```
+
+## Şu anki durum
+
+- [x] Veri modelleri (`yolhasar.models`)
+- [x] Görüntü ön işleme (`yolhasar.preprocessing`)
+
+Ön işleme adımlarını bir görüntü üzerinde görmek için:
+
+```bash
+python scripts/on_isleme_demo.py yol.jpg adimlar.png
+```
