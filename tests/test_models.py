@@ -1,6 +1,6 @@
 import pytest
 
-from yolhasar.models import HasarTuru, Konum, Kutu
+from yolhasar.models import HasarTuru, Konum, Kutu, Rapor, Siddet, Tespit
 
 
 def test_koddan_donusum():
@@ -65,3 +65,51 @@ def test_istanbul_ankara_mesafesi():
     # Kuş uçuşu yaklaşık 350 km
     km = Konum(41.0082, 28.9784).mesafe_m(Konum(39.9334, 32.8597)) / 1000
     assert 340 < km < 360
+
+
+def ornek_rapor() -> Rapor:
+    r = Rapor("ornek.jpg", 640, 480, konum=Konum(41.0082, 28.9784))
+    r.ekle(HasarTuru.BOYUNA_CATLAK, Kutu(10, 10, 8, 120), 0.7)
+    r.ekle(HasarTuru.CUKUR, Kutu(300, 200, 150, 120), 0.9)
+    return r
+
+
+@pytest.mark.parametrize(
+    "puan,beklenen",
+    [(0, Siddet.DUSUK), (30, Siddet.ORTA), (60, Siddet.YUKSEK), (100, Siddet.KRITIK)],
+)
+def test_siddet_esikleri(puan, beklenen):
+    assert Siddet.puandan(puan) is beklenen
+
+
+def test_buyuk_cukur_ince_catlaktan_siddetli():
+    r = ornek_rapor()
+    catlak, cukur = r.tespitler
+    assert cukur.puan > catlak.puan
+    assert r.en_yuksek_siddet() is cukur.siddet
+
+
+def test_gecersiz_guven():
+    with pytest.raises(ValueError):
+        Tespit.olustur(HasarTuru.CUKUR, Kutu(0, 0, 1, 1), 1.5, 100)
+
+
+def test_json_gidis_donus():
+    r = ornek_rapor()
+    metin = r.json()
+    assert '"D40"' in metin
+    assert Rapor.jsondan(metin) == r
+
+
+def test_konumsuz_rapor_json():
+    r = Rapor("a.jpg", 10, 10)
+    assert "konum" not in r.json()
+    assert Rapor.jsondan(r.json()) == r
+    assert r.en_yuksek_siddet() is None
+
+
+def test_siralama_ve_sayim():
+    r = ornek_rapor()
+    r.puana_gore_sirala()
+    assert r.tespitler[0].tur is HasarTuru.CUKUR
+    assert r.tur_sayilari() == {"D00": 1, "D40": 1}
