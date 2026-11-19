@@ -1,0 +1,132 @@
+"""Görüntü ön işleme adımları.
+
+Tespit algoritmaları (klasik ve derin öğrenme) girdiyi tutarlı biçimde bekler:
+makul boyut, gri ton, gürültüsü azaltılmış ve kontrastı dengelenmiş görüntü.
+"""
+
+from __future__ import annotations
+
+from dataclasses import dataclass
+from pathlib import Path
+
+import cv2
+import numpy as np
+
+
+def yukle(yol: str | Path) -> np.ndarray:
+    """Görüntüyü BGR formatında yükler.
+
+    ``cv2.imread`` Windows'ta Türkçe karakter içeren yolları okuyamadığı için
+    dosya önce bayt olarak okunup ``cv2.imdecode`` ile çözülür.
+    """
+    veri = np.fromfile(str(yol), dtype=np.uint8)
+    goruntu = cv2.imdecode(veri, cv2.IMREAD_COLOR)
+    if goruntu is None:
+        raise ValueError(f"görüntü okunamadı: {yol}")
+    return goruntu
+
+
+def kaydet(goruntu: np.ndarray, yol: str | Path) -> None:
+    """Görüntüyü diske yazar; format uzantıdan belirlenir."""
+    yol = Path(yol)
+    basarili, tampon = cv2.imencode(yol.suffix, goruntu)
+    if not basarili:
+        raise ValueError(f"görüntü kodlanamadı: {yol}")
+    tampon.tofile(str(yol))
+
+
+def gri_ton(goruntu: np.ndarray) -> np.ndarray:
+    """BGR görüntüyü gri tona çevirir (BT.601: Y = 0.299R + 0.587G + 0.114B).
+
+    Çatlak ve çukurlar renkten çok parlaklık farkıyla ayırt edildiği için
+    sonraki adımlar tek kanallı görüntüyle çalışır. Zaten gri olan görüntü
+    olduğu gibi döner.
+    """
+    if goruntu.ndim == 2:
+        return goruntu
+    return cv2.cvtColor(goruntu, cv2.COLOR_BGR2GRAY)
+
+
+def boyutlandir(goruntu: np.ndarray, uzun_kenar: int = 640) -> np.ndarray:
+    """Uzun kenar ``uzun_kenar`` piksel olacak şekilde en-boy oranını koruyarak küçültür.
+
+    Telefon kameralarından gelen 4000×3000 gibi görüntüleri işlemek hem yavaş
+    hem de gereksizdir; YOLO modeli de 640 piksel girdiyle eğitilecektir.
+    Görüntü zaten küçükse büyütülmez.
+    """
+    if uzun_kenar <= 0:
+        raise ValueError("uzun_kenar pozitif olmalı")
+    y, g = goruntu.shape[:2]
+    mevcut = max(g, y)
+    if mevcut <= uzun_kenar:
+        return goruntu
+    olcek = uzun_kenar / mevcut
+    yeni = (max(1, round(g * olcek)), max(1, round(y * olcek)))
+    # INTER_AREA küçültmede örtüşme (aliasing) bozulmasını en aza indirir
+    return cv2.resize(goruntu, yeni, interpolation=cv2.INTER_AREA)
+
+
+def gauss_bulaniklastir(goruntu: np.ndarray, sigma: float = 1.5) -> np.ndarray:
+    """Gauss bulanıklaştırma.
+
+    Asfalt dokusundaki ince taneli gürültüyü bastırır; böylece kenar tespitinde
+    çatlak gibi daha büyük yapılar öne çıkar. Çekirdek boyutu ``6σ+1``
+    (dağılımın ~%99.7'si) olarak seçilir.
+    """
+    if not sigma > 0:
+        raise ValueError(f"sigma pozitif olmalı: {sigma}")
+    k = int(np.ceil(3 * sigma)) * 2 + 1
+    return cv2.GaussianBlur(goruntu, (k, k), sigma)
+
+
+def kontrast_dengele(gri: np.ndarray, kirpma_limiti: float = 2.0, karo: int = 8) -> np.ndarray:
+    """CLAHE (Kontrast Sınırlı Uyarlamalı Histogram Eşitleme).
+
+    Yol görüntülerinde gölge, güneş yansıması gibi bölgesel aydınlatma
+    farkları olur. Global histogram eşitleme bu durumda bazı bölgeleri
+    patlatır; CLAHE görüntüyü ``karo×karo`` parçaya bölüp her birinde ayrı
+    eşitleme yapar ve kırpma limitiyle gürültünün aşırı büyümesini önler.
+    """
+    if gri.ndim != 2:
+        raise ValueError("CLAHE tek kanallı (gri) görüntü bekler")
+    clahe = cv2.createCLAHE(clipLimit=kirpma_limiti, tileGridSize=(karo, karo))
+    return clahe.apply(gri)
+
+
+@dataclass(frozen=True)
+class OnIslemeAyarlari:
+    """Ön işleme hattının parametreleri."""
+
+    uzun_kenar: int = 640
+    sigma: float = 1.5
+    clahe: bool = True
+    kirpma_limiti: float = 2.0
+
+
+@dataclass(frozen=True)
+class OnIslemeSonucu:
+    """Ön işlenmiş görüntü ve orijinal koordinatlara dönüş için ölçek."""
+
+    goruntu: np.ndarray
+    olcek: float  # işlenmiş / orijinal
+
+    def orijinale(self, deger: float) -> float:
+        """İşlenmiş görüntüdeki bir piksel değerini orijinal görüntü ölçeğine çevirir."""
+        return deger / self.olcek
+
+
+def on_isle(goruntu: np.ndarray, ayarlar: OnIslemeAyarlari | None = None) -> OnIslemeSonucu:
+    """Tam ön işleme hattı: boyutlandırma → gri ton → CLAHE → Gauss.
+
+    CLAHE, bulanıklaştırmadan önce uygulanır; aksi halde bulanıklaştırmanın
+    düşürdüğü yerel kontrast tekrar yükseltilip gürültü geri gelir.
+    """
+    ayarlar = ayarlar or OnIslemeAyarlari()
+    orijinal_uzun = max(goruntu.shape[:2])
+    img = boyutlandir(goruntu, ayarlar.uzun_kenar)
+    olcek = max(img.shape[:2]) / orijinal_uzun
+    img = gri_ton(img)
+    if ayarlar.clahe:
+        img = kontrast_dengele(img, ayarlar.kirpma_limiti)
+    img = gauss_bulaniklastir(img, ayarlar.sigma)
+    return OnIslemeSonucu(img, olcek)

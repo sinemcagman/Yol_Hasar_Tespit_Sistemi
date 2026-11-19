@@ -42,7 +42,7 @@ karşılaştırılır.
 ### Faz 1 — Temel altyapı
 - [x] **PR 1** — Proje iskeleti: paket yapısı, `pyproject.toml`, pytest, ruff
 - [x] **PR 2** — Veri modelleri: hasar türü, sınırlayıcı kutu, GPS konumu, şiddet puanlama, JSON rapor
-- [ ] **PR 3** — Görüntü ön işleme: gri tonlama, yeniden boyutlandırma, Gauss bulanıklaştırma, CLAHE
+- [x] **PR 3** — Görüntü ön işleme: gri tonlama, yeniden boyutlandırma, Gauss bulanıklaştırma, CLAHE
 
 ### Faz 2 — Klasik görüntü işleme ile temel tespit
 - [ ] **PR 4** — Kenar çıkarımı (Canny/Sobel) ve adaptif eşikleme
